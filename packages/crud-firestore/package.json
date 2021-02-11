@@ -1,0 +1,44 @@
+{
+  "name": "@nestjsx/crud-firestore",
+  "description": "NestJs CRUD for RESTful APIs - Firestore",
+  "version": "5.0.0-alpha.3",
+  "license": "MIT",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "lib"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/souzantero/crud.git"
+  },
+  "bugs": {
+    "url": "https://github.com/souzantero/crud/issues"
+  },
+  "keywords": [
+    "typescript",
+    "firestore",
+    "nest",
+    "nestjs",
+    "rest",
+    "restful",
+    "api",
+    "crud",
+    "crud-generator",
+    "backend",
+    "frameworks"
+  ],
+  "author": {
+    "name": "Felipe Antero",
+    "email": "souzantero@gmail.com"
+  },
+  "scripts": {
+    "build": "npx tsc -b"
+  },
+  "dependencies": {
+    "firebase-admin": "^9.5.0"
+  }
+}

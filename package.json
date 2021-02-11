@@ -20,6 +20,7 @@
     "test:all": "yarn test:mysql && yarn test:postgres",
     "test:postgres": "yarn db:prepare:typeorm && yarn test",
     "test:mysql": "yarn db:prepare:typeorm:mysql && TYPEORM_CONNECTION=mysql yarn test",
+    "start:firestore": "npx nodemon -w ./integration/crud-firestore -e ts node_modules/ts-node/dist/bin.js integration/crud-firestore/main.ts",
     "start:typeorm": "npx nodemon -w ./integration/crud-typeorm -e ts node_modules/ts-node/dist/bin.js integration/crud-typeorm/main.ts",
     "db:cli:typeorm": "cd ./integration/crud-typeorm && npx ts-node -r tsconfig-paths/register ../../node_modules/typeorm/cli.js",
     "db:sync:typeorm": "yarn db:cli:typeorm schema:sync -f=orm",

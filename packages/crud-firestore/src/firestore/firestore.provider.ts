@@ -1,13 +1,13 @@
-import * as firebase from 'firebase-admin';
+import { Firestore, Settings } from '@google-cloud/firestore';
 
 export class FirestoreProvider {
-  constructor(options: firebase.AppOptions) {
-    if (!firebase.apps.length) {
-      firebase.initializeApp(options);
-    }
+  private readonly firestore: Firestore;
+
+  constructor(options: Settings) {
+    this.firestore = new Firestore(options);
   }
 
-  firestore(): firebase.firestore.Firestore {
-    return firebase.firestore();
+  get() {
+    return this.firestore;
   }
 }

@@ -1,49 +1,33 @@
 import { DynamicModule, Module } from '@nestjs/common';
+import { FirestoreCoreModule } from './firestore-core.module';
 import { FirestoreProvider } from './firestore.provider';
-import { FIRESTORE_PROVIDER, FIRESTORE_MODULE_OPTIONS } from './firestore.constants';
-import {
-  FirestoreModuleOptions,
-  FirestoreModuleAsyncOptions,
-} from './interfaces/firestore-options.interface';
+import { FIRESTORE_PROVIDER } from './firestore.constants';
+import { getCollectionToken } from './firestore.utils';
+
+import { FirestoreModuleOptions } from './interfaces/firestore-options.interface';
 
 @Module({})
 export class FirestoreModule {
   static forRoot(options: FirestoreModuleOptions = {}): DynamicModule {
     return {
       module: FirestoreModule,
-      providers: [
-        {
-          provide: FIRESTORE_PROVIDER,
-          useFactory: () => {
-            return new FirestoreProvider(options);
-          },
-        },
-      ],
-      exports: [FIRESTORE_PROVIDER],
+      imports: [FirestoreCoreModule.forRoot(options)],
     };
   }
 
-  static forRootAsync(options: FirestoreModuleAsyncOptions): DynamicModule {
-    const { imports, useFactory, inject } = options;
-
+  static forFeature(collectionName: string): DynamicModule {
     return {
       module: FirestoreModule,
       providers: [
         {
-          provide: FIRESTORE_MODULE_OPTIONS,
-          useFactory,
-          inject: inject || [],
-        },
-        {
-          provide: FIRESTORE_PROVIDER,
-          useFactory: (firestoreModuleOptions: FirestoreModuleOptions) => {
-            return new FirestoreProvider(firestoreModuleOptions);
+          provide: getCollectionToken(collectionName),
+          useFactory: (firestoreProvider: FirestoreProvider) => {
+            return firestoreProvider.get().collection(collectionName);
           },
-          inject: [FIRESTORE_MODULE_OPTIONS],
+          inject: [FIRESTORE_PROVIDER],
         },
       ],
-      imports,
-      exports: [FIRESTORE_PROVIDER],
+      exports: [getCollectionToken(collectionName)],
     };
   }
 }

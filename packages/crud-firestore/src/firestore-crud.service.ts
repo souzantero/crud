@@ -5,14 +5,10 @@ import {
   GetManyDefaultResponse,
 } from '@nestjsx/crud';
 
-import * as firebase from 'firebase-admin';
+import { CollectionReference, DocumentData } from '@google-cloud/firestore';
 
 export class FirestoreCrudService<T> extends CrudService<T> {
-  constructor(
-    protected collection: firebase.firestore.CollectionReference<
-      firebase.firestore.DocumentData
-    >,
-  ) {
+  constructor(protected collection: CollectionReference<DocumentData>) {
     super();
   }
 

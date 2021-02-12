@@ -1,9 +1,7 @@
 import { ModuleMetadata } from '@nestjs/common';
-import * as firebase from 'firebase-admin';
+import { Settings } from '@google-cloud/firestore';
 
-export interface FirestoreModuleOptions
-  extends firebase.AppOptions,
-    Record<string, any> {}
+export interface FirestoreModuleOptions extends Settings, Record<string, any> {}
 
 export interface FirestoreModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
   useFactory: (

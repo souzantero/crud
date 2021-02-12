@@ -39,6 +39,6 @@
     "build": "npx tsc -b"
   },
   "dependencies": {
-    "firebase-admin": "^9.5.0"
+    "@google-cloud/firestore": "^4.9.3"
   }
 }

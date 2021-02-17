@@ -1,10 +1,12 @@
 import { DynamicModule, Module } from '@nestjs/common';
+import { CollectionReference, DocumentData } from '@google-cloud/firestore';
 import { FirestoreCoreModule } from './firestore-core.module';
 import { FirestoreProvider } from './firestore.provider';
 import { FIRESTORE_PROVIDER } from './firestore.constants';
-import { getCollectionToken } from './firestore.utils';
+import { getCollectionToken, getRepositoryToken } from './firestore.utils';
 
 import { FirestoreModuleOptions } from './interfaces/firestore-options.interface';
+import { FirestoreRepository } from './firestore.repository';
 
 @Module({})
 export class FirestoreModule {
@@ -26,8 +28,15 @@ export class FirestoreModule {
           },
           inject: [FIRESTORE_PROVIDER],
         },
+        {
+          provide: getRepositoryToken(collectionName),
+          useFactory: (collectionReference: CollectionReference<DocumentData>) => {
+            return new FirestoreRepository(collectionName, collectionReference);
+          },
+          inject: [getCollectionToken(collectionName)],
+        },
       ],
-      exports: [getCollectionToken(collectionName)],
+      exports: [getCollectionToken(collectionName), getRepositoryToken(collectionName)],
     };
   }
 }

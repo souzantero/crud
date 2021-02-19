@@ -5,17 +5,26 @@ import {
   Query,
 } from '@google-cloud/firestore';
 
+export interface CollectionMetadata {
+  fields: string[];
+}
+
 export class FirestoreRepository<T> {
   constructor(
     protected collectionName: string,
     protected collectionReference: CollectionReference<DocumentData>,
+    protected collectionMetadata: CollectionMetadata,
   ) {}
 
   get name(): string {
     return this.collectionName;
   }
 
-  document(documentPath: string): DocumentReference<DocumentData> {
-    return this.collectionReference.doc(documentPath);
+  get collection(): CollectionReference<DocumentData> {
+    return this.collectionReference;
+  }
+
+  get metadata(): CollectionMetadata {
+    return this.collectionMetadata;
   }
 }

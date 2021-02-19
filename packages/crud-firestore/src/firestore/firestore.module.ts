@@ -17,7 +17,7 @@ export class FirestoreModule {
     };
   }
 
-  static forFeature(collectionName: string): DynamicModule {
+  static forFeature(collectionName: string, options: any): DynamicModule {
     return {
       module: FirestoreModule,
       providers: [
@@ -31,7 +31,9 @@ export class FirestoreModule {
         {
           provide: getRepositoryToken(collectionName),
           useFactory: (collectionReference: CollectionReference<DocumentData>) => {
-            return new FirestoreRepository(collectionName, collectionReference);
+            return new FirestoreRepository(collectionName, collectionReference, {
+              fields: options.collectionFields,
+            });
           },
           inject: [getCollectionToken(collectionName)],
         },

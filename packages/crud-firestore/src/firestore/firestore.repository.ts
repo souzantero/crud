@@ -5,8 +5,13 @@ import {
   Query,
 } from '@google-cloud/firestore';
 
+export interface CollectionField {
+  name: string;
+  isDeleteFlag: boolean;
+}
+
 export interface CollectionMetadata {
-  fields: string[];
+  fields: CollectionField[];
 }
 
 export class FirestoreRepository<T> {

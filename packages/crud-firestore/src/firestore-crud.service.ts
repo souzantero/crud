@@ -1,4 +1,5 @@
 import {
+  CollectionReference,
   DocumentData,
   DocumentReference,
   DocumentSnapshot,
@@ -31,20 +32,24 @@ import {
   SConditionKey,
 } from '@nestjsx/crud-request';
 
-import { FirestoreRepository } from './firestore/firestore.repository';
+import { CollectionMetadata } from './firestore/interfaces/collection-metadata.interface';
 
 export abstract class FirestoreCrudService<T> extends CrudService<T> {
+  protected collectionName: string;
   protected collectionFields: string[];
   protected collectionHasDeleteField: boolean = false;
   protected collectionDeleteField: string;
 
-  constructor(protected repository: FirestoreRepository<T>) {
+  constructor(
+    protected collection: CollectionReference<DocumentData>,
+    protected metadata: CollectionMetadata,
+  ) {
     super();
 
     this.onInitMapCollectionFields();
 
-    console.log('Service', this);
-    console.log('Repository', repository);
+    console.log('Collection', collection);
+    console.log('Metadata', metadata);
     console.log('.');
   }
 
@@ -96,11 +101,12 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
   ): T | Promise<T>;
 
   protected onInitMapCollectionFields() {
-    this.collectionFields = this.repository.metadata.fields.map((field) => field.name);
+    this.collectionName = this.metadata.name;
+    this.collectionFields = this.metadata.fields.map((field) => field.name);
     this.collectionHasDeleteField =
-      this.repository.metadata.fields.filter((field) => field.isDeleteFlag).length > 0;
+      this.metadata.fields.filter((field) => field.isDeleteFlag).length > 0;
     this.collectionDeleteField = this.collectionHasDeleteField
-      ? this.repository.metadata.fields.find((field) => field.isDeleteFlag).name
+      ? this.metadata.fields.find((field) => field.isDeleteFlag).name
       : undefined;
   }
 
@@ -115,18 +121,16 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     console.log('Parsed.search', parsed.search['$and']);
     console.log('Options', options);
 
-    const collectionReference = this.repository.collection;
-
     const id = this.getIdParameter(parsed);
 
-    let collectionQuery = collectionReference.where(FieldPath.documentId(), '==', id);
+    let collectionQuery = this.collection.where(FieldPath.documentId(), '==', id);
     collectionQuery = this.setSelectFields(collectionQuery, parsed, options);
     collectionQuery = this.setSoftDelete(collectionQuery, parsed, options, withDeleted);
 
     const snapshotQuery = await collectionQuery.get();
 
     if (snapshotQuery.empty) {
-      this.throwNotFoundException(this.repository.name);
+      this.throwNotFoundException(this.collectionName);
     }
 
     return this.convertDocumentSnapshot(snapshotQuery.docs[0]);

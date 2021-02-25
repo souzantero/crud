@@ -3,10 +3,13 @@ import { CollectionReference, DocumentData } from '@google-cloud/firestore';
 import { FirestoreCoreModule } from './firestore-core.module';
 import { FirestoreProvider } from './firestore.provider';
 import { FIRESTORE_PROVIDER } from './firestore.constants';
-import { getCollectionToken, getRepositoryToken } from './firestore.utils';
+import { getCollectionToken, getMetadataToken } from './firestore.utils';
 
-import { FirestoreModuleOptions } from './interfaces/firestore-options.interface';
-import { FirestoreRepository } from './firestore.repository';
+import {
+  FirestoreFeatureOptions,
+  FirestoreModuleOptions,
+} from './interfaces/firestore-options.interface';
+import { CollectionMetadata } from './interfaces/collection-metadata.interface';
 
 @Module({})
 export class FirestoreModule {
@@ -17,28 +20,26 @@ export class FirestoreModule {
     };
   }
 
-  static forFeature(collectionName: string, options: any): DynamicModule {
+  static forFeature(options: FirestoreFeatureOptions): DynamicModule {
+    const collectionToken = getCollectionToken(options.name);
+    const metadataToken = getMetadataToken(options.name);
+
     return {
       module: FirestoreModule,
       providers: [
         {
-          provide: getCollectionToken(collectionName),
+          provide: collectionToken,
           useFactory: (firestoreProvider: FirestoreProvider) => {
-            return firestoreProvider.get().collection(collectionName);
+            return firestoreProvider.get().collection(options.name);
           },
           inject: [FIRESTORE_PROVIDER],
         },
         {
-          provide: getRepositoryToken(collectionName),
-          useFactory: (collectionReference: CollectionReference<DocumentData>) => {
-            return new FirestoreRepository(collectionName, collectionReference, {
-              fields: options.collectionFields,
-            });
-          },
-          inject: [getCollectionToken(collectionName)],
+          provide: metadataToken,
+          useValue: options,
         },
       ],
-      exports: [getCollectionToken(collectionName), getRepositoryToken(collectionName)],
+      exports: [collectionToken, metadataToken],
     };
   }
 }

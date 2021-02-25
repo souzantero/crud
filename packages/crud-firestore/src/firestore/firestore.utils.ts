@@ -2,6 +2,6 @@ export function getCollectionToken(collectionName: string): string {
   return `${collectionName}Provider`;
 }
 
-export function getRepositoryToken(collectionName: string): string {
-  return `${collectionName}Repository`;
+export function getMetadataToken(collectionName: string): string {
+  return `${collectionName}Metadata`;
 }

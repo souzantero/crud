@@ -123,9 +123,10 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
 
     const id = this.getIdParameter(parsed);
 
-    let collectionQuery = this.collection.where(FieldPath.documentId(), '==', id);
-    collectionQuery = this.setSelectFields(collectionQuery, parsed, options);
-    collectionQuery = this.setSoftDelete(collectionQuery, parsed, options, withDeleted);
+    let collectionQuery = this.buildQuery(this.collection);
+    collectionQuery = collectionQuery.where(FieldPath.documentId(), '==', id);
+    collectionQuery = this.selectFields(collectionQuery, parsed, options);
+    collectionQuery = this.withDeleted(collectionQuery, parsed, options, withDeleted);
 
     const snapshotQuery = await collectionQuery.get();
 
@@ -134,6 +135,18 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     }
 
     return this.convertDocumentSnapshot(snapshotQuery.docs[0]);
+  }
+
+  protected buildQuery(
+    collection: CollectionReference<DocumentData>,
+  ): Query<DocumentData> {
+    if (this.collectionHasDeleteField) {
+      return collection
+        .where(this.collectionDeleteField, '==', false)
+        .orderBy(FieldPath.documentId(), 'desc');
+    }
+
+    return collection.orderBy(FieldPath.documentId(), 'desc');
   }
 
   protected getIdParameter(parsed: ParsedRequestParams): any {
@@ -173,7 +186,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
         );
   }
 
-  protected setSelectFields(
+  protected selectFields(
     query: Query<DocumentData>,
     parsed: ParsedRequestParams,
     options: CrudRequestOptions,
@@ -182,7 +195,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     return query.select(...select);
   }
 
-  protected setSoftDelete(
+  protected withDeleted(
     query: Query<DocumentData>,
     parsed: ParsedRequestParams,
     options: CrudRequestOptions,
@@ -190,7 +203,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
   ): Query<DocumentData> {
     if (this.collectionHasDeleteField && options.query.softDelete) {
       if (parsed.includeDeleted === 1 || withDeleted) {
-        return query.where(this.collectionDeleteField, '==', false);
+        return query.where(this.collectionDeleteField, '==', true);
       }
     }
 

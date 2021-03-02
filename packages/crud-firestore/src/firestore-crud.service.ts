@@ -6,6 +6,7 @@ import {
   FieldPath,
   Query,
   QuerySnapshot,
+  Timestamp,
 } from '@google-cloud/firestore';
 import {
   CreateManyDto,
@@ -77,8 +78,31 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     return this.getOneOrFail(req);
   }
 
-  createOne(req: CrudRequest, dto: T): Promise<T> {
-    throw new Error('Method not implemented.');
+  async createOne(req: CrudRequest, dto: T): Promise<T> {
+    const entity = this.prepareEntityBeforeSave(dto, req.parsed);
+
+    /* istanbul ignore if */
+    if (!entity) {
+      this.throwBadRequestException(`Empty data. Nothing to save.`);
+    }
+
+    const now = Timestamp.fromDate(new Date());
+
+    if (this.collectionHasDeleteField) {
+      dto = { ...dto, [this.collectionDeleteField]: false };
+    }
+
+    const newDocument = this.collection.doc();
+    await newDocument.set({ ...dto, createdAt: now, updatedAt: now });
+
+    return this.getOneById(newDocument.id);
+  }
+
+  protected async getOneById(id: any) {
+    return this.collection
+      .doc(id)
+      .get()
+      .then(this.disruptDocumentSnapshot);
   }
 
   createMany(req: CrudRequest, dto: CreateManyDto<any>): Promise<T[]> {
@@ -122,10 +146,6 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
   ): Promise<T> {
     const { parsed, options } = req;
 
-    console.log('Parsed', parsed);
-    console.log('Parsed.search', parsed.search['$and']);
-    console.log('Options', options);
-
     const id = this.getIdParameter(parsed);
 
     let collectionQuery = this.buildQuery(this.collection);
@@ -133,22 +153,21 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     collectionQuery = this.selectFields(collectionQuery, parsed, options);
     collectionQuery = this.withDeleted(collectionQuery, withDeleted);
 
-    const observable = from(collectionQuery.get());
-    console.log('Observable', observable);
-    const pipe = observable.pipe(
-      this.innerJoin(parsed, options),
-      shareReplay(1),
-    );
+    const snapshotQuery = await collectionQuery.get();
 
-    console.log('Pipe', pipe);
+    if (snapshotQuery.empty) {
+      this.throwNotFoundException(this.collectionName);
+    }
 
-    return pipe.toPromise() as any;
+    return this.disruptQuerySnapshot(snapshotQuery)[0];
+  }
 
-    // if (snapshotQuery.empty) {
-    //   this.throwNotFoundException(this.collectionName);
-    // }
+  protected disruptQuerySnapshot(snapshot: QuerySnapshot<DocumentData>): T[] {
+    return snapshot.docs.map(this.disruptDocumentSnapshot);
+  }
 
-    // return this.convertDocumentSnapshot(snapshotQuery.docs[0]);
+  protected disruptDocumentSnapshot(snapshot: DocumentSnapshot<DocumentData>): any {
+    return { id: snapshot.id, ...snapshot.data() };
   }
 
   protected buildQuery(
@@ -200,94 +219,6 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
         );
   }
 
-  protected innerJoin(parsed: ParsedRequestParams, options: CrudRequestOptions) {
-    return (source) => {
-      console.log('Source', source);
-
-      return defer(() => {
-        let collectionData;
-
-        return source.pipe(
-          switchMap((snapshot: any) => {
-            console.log('Snapshot', snapshot);
-            collectionData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-            const reads$ = [];
-            for (const doc of collectionData) {
-              reads$.push(
-                this.collection.firestore
-                  .collection('kitcategories')
-                  .where(
-                    'kit',
-                    '==',
-                    this.collection.firestore.collection('kits').doc(doc.id),
-                  )
-                  .get(),
-              );
-            }
-
-            return combineLatest(reads$);
-          }),
-          map((joins: any) => {
-            const collectionJoins = joins[0].docs.map((doc) => {
-              console.log('Doc Join', doc);
-              return { id: doc.id, ...doc.data() };
-            });
-            console.log('Joins', collectionJoins);
-            return collectionData.map((v, i) => {
-              return { ...v, kitcategories: collectionJoins[i] || null };
-            });
-          }),
-        );
-      });
-    };
-  }
-
-  protected join(
-    promiseQuery: Promise<QuerySnapshot<DocumentData>>,
-    parsed: ParsedRequestParams,
-    options: CrudRequestOptions,
-  ): Promise<QuerySnapshot<DocumentData>> {
-    // set joins
-    const joinOptions = options.query.join || {};
-    const allowedJoins = objKeys(joinOptions);
-
-    if (hasLength(allowedJoins)) {
-      const eagerJoins: any = {};
-
-      for (let i = 0; i < allowedJoins.length; i++) {
-        /* istanbul ignore else */
-        if (joinOptions[allowedJoins[i]].eager) {
-          const cond = parsed.join.find((j) => j && j.field === allowedJoins[i]) || {
-            field: allowedJoins[i],
-          };
-
-          promiseQuery = this.setJoin(promiseQuery, cond, joinOptions);
-          eagerJoins[allowedJoins[i]] = true;
-        }
-      }
-
-      if (isArrayFull(parsed.join)) {
-        for (let i = 0; i < parsed.join.length; i++) {
-          /* istanbul ignore else */
-          if (!eagerJoins[parsed.join[i].field]) {
-            promiseQuery = this.setJoin(promiseQuery, parsed.join[i], joinOptions);
-          }
-        }
-      }
-    }
-
-    return promiseQuery;
-  }
-
-  protected setJoin(
-    promiseQuery: Promise<QuerySnapshot<DocumentData>>,
-    cond: QueryJoin,
-    joinOptions: JoinOptions,
-  ): Promise<QuerySnapshot<DocumentData>> {
-    return promiseQuery;
-  }
-
   protected selectFields(
     query: Query<DocumentData>,
     parsed: ParsedRequestParams,
@@ -321,5 +252,30 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     }
 
     return query;
+  }
+
+  protected prepareEntityBeforeSave(
+    dto: Partial<T>,
+    parsed: CrudRequest['parsed'],
+  ): Partial<T> {
+    /* istanbul ignore if */
+    if (!isObject(dto)) {
+      return undefined;
+    }
+
+    if (hasLength(parsed.paramsFilter)) {
+      for (const filter of parsed.paramsFilter) {
+        dto[filter.field] = filter.value;
+      }
+    }
+
+    const authPersist = isObject(parsed.authPersist) ? parsed.authPersist : {};
+
+    /* istanbul ignore if */
+    if (!hasLength(objKeys(dto))) {
+      return undefined;
+    }
+
+    return { ...dto, ...authPersist };
   }
 }

@@ -172,8 +172,14 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     throw new Error('Method not implemented.');
   }
 
-  recoverOne(req: CrudRequest): Promise<void | T> {
-    throw new Error('Method not implemented.');
+  async recoverOne(req: CrudRequest): Promise<void | T> {
+    if (!this.collectionDeleteField) {
+      this.throwBadRequestException(`${this.collectionName} don't use soft delete`);
+    }
+
+    const found = await this.getOneOrFail(req, true, true);
+    await found.ref.update({ [this.collectionDeleteField]: false });
+    return this.getOneOrFailAndDisrupt(req);
   }
 
   public getParamFilters(parsed: CrudRequest['parsed']): ObjectLiteral {
@@ -222,13 +228,15 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
 
     const id = this.getIdParameter(parsed, options);
 
-    let collectionQuery = this.buildQuery(this.collection);
-    collectionQuery = collectionQuery.where(FieldPath.documentId(), '==', id);
-    collectionQuery = this.withDeleted(collectionQuery, withDeleted);
+    let collectionQuery = this.collection.where(FieldPath.documentId(), '==', id);
 
     if (!shallow) {
       collectionQuery = this.selectFields(collectionQuery, parsed, options);
       collectionQuery = this.softDeleted(collectionQuery, parsed, options, withDeleted);
+    }
+
+    if (!withDeleted) {
+      collectionQuery = this.onlyThoseNotDeleted(collectionQuery);
     }
 
     const snapshotQuery = await collectionQuery.get();
@@ -247,18 +255,6 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     const primaryParams = this.getPrimaryParams(options);
     const primaryFields = primaryParams.reduce((acc, p) => ({ [p]: snapshot.id }), {});
     return { ...primaryFields, ...snapshot.data() };
-  }
-
-  protected buildQuery(
-    collection: CollectionReference<DocumentData>,
-  ): Query<DocumentData> {
-    if (this.collectionHasDeleteField) {
-      return collection
-        .where(this.collectionDeleteField, '==', false)
-        .orderBy(FieldPath.documentId(), 'desc');
-    }
-
-    return collection.orderBy(FieldPath.documentId(), 'desc');
   }
 
   protected getIdParameter(
@@ -315,21 +311,18 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     options: CrudRequestOptions,
     withDeleted: boolean = false,
   ): Query<DocumentData> {
-    if (this.collectionHasDeleteField && options.query.softDelete) {
-      if (parsed.includeDeleted === 1 || withDeleted) {
-        return query.where(this.collectionDeleteField, '==', true);
+    if (!options.query.softDelete) {
+      if (parsed.includeDeleted !== 1 && !withDeleted) {
+        return this.onlyThoseNotDeleted(query);
       }
     }
 
     return query;
   }
 
-  protected withDeleted(
-    query: Query<DocumentData>,
-    withDeleted: boolean = false,
-  ): Query<DocumentData> {
-    if (this.collectionHasDeleteField && withDeleted) {
-      return query.where(this.collectionDeleteField, '==', true);
+  protected onlyThoseNotDeleted(query: Query<DocumentData>): Query<DocumentData> {
+    if (this.collectionHasDeleteField) {
+      return query.where(this.collectionDeleteField, '==', false);
     }
 
     return query;

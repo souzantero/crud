@@ -79,7 +79,9 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
   }
 
   async createOne(req: CrudRequest, dto: T): Promise<T> {
-    const entity = this.prepareEntityBeforeSave(dto, req.parsed);
+    const { returnShallow } = req.options.routes.createOneBase;
+
+    let entity = this.prepareEntityBeforeSave(dto, req.parsed);
 
     /* istanbul ignore if */
     if (!entity) {
@@ -89,20 +91,35 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     const now = Timestamp.fromDate(new Date());
 
     if (this.collectionHasDeleteField) {
-      dto = { ...dto, [this.collectionDeleteField]: false };
+      entity = { ...entity, [this.collectionDeleteField]: false };
     }
 
     const newDocument = this.collection.doc();
-    await newDocument.set({ ...dto, createdAt: now, updatedAt: now });
+    await newDocument.set({ ...entity, createdAt: now, updatedAt: now });
+    const saved = await this.getOneById(newDocument.id);
 
-    return this.getOneById(newDocument.id);
-  }
+    if (returnShallow) {
+      return saved;
+    } else {
+      const primaryParams = this.getPrimaryParams(req.options);
 
-  protected async getOneById(id: any) {
-    return this.collection
-      .doc(id)
-      .get()
-      .then(this.disruptDocumentSnapshot);
+      /* istanbul ignore next */
+      if (!primaryParams.length && primaryParams.some((p) => isNil(saved[p]))) {
+        return saved;
+      } else {
+        req.parsed.paramsFilter = primaryParams.map((p) => ({
+          field: p,
+          operator: '$eq',
+          value: saved[p],
+        }));
+        req.parsed.search = primaryParams.reduce(
+          (acc, p) => ({ ...acc, [p]: saved[p] }),
+          {},
+        );
+
+        return this.getOneOrFail(req);
+      }
+    }
   }
 
   createMany(req: CrudRequest, dto: CreateManyDto<any>): Promise<T[]> {
@@ -137,6 +154,13 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     this.collectionDeleteField = this.collectionHasDeleteField
       ? this.metadata.fields.find((field) => field.isDeleteFlag).name
       : undefined;
+  }
+
+  protected async getOneById(id: any) {
+    return this.collection
+      .doc(id)
+      .get()
+      .then(this.disruptDocumentSnapshot);
   }
 
   protected async getOneOrFail(

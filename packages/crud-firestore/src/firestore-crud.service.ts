@@ -26,6 +26,7 @@ import {
   objKeys,
   isNil,
   isNull,
+  ObjectLiteral,
 } from '@nestjsx/util';
 import {
   ComparisonOperator,
@@ -75,7 +76,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
   }
 
   getOne(req: CrudRequest): Promise<T> {
-    return this.getOneOrFail(req);
+    return this.getOneOrFailAndDisrupt(req);
   }
 
   async createOne(req: CrudRequest, dto: T): Promise<T> {
@@ -96,28 +97,30 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
 
     const newDocument = this.collection.doc();
     await newDocument.set({ ...entity, createdAt: now, updatedAt: now });
-    const saved = await this.getOneById(newDocument.id);
+    const savedSnapshot = await newDocument.get();
+    const savedEntity = this.disruptDocumentSnapshot(savedSnapshot);
 
     if (returnShallow) {
-      return saved;
+      return savedEntity;
     } else {
       const primaryParams = this.getPrimaryParams(req.options);
 
       /* istanbul ignore next */
-      if (!primaryParams.length && primaryParams.some((p) => isNil(saved[p]))) {
-        return saved;
+      if (!primaryParams.length && primaryParams.some((p) => isNil(savedEntity[p]))) {
+        return savedEntity;
       } else {
         req.parsed.paramsFilter = primaryParams.map((p) => ({
           field: p,
           operator: '$eq',
-          value: saved[p],
+          value: savedEntity[p],
         }));
+
         req.parsed.search = primaryParams.reduce(
-          (acc, p) => ({ ...acc, [p]: saved[p] }),
+          (acc, p) => ({ ...acc, [p]: savedEntity[p] }),
           {},
         );
 
-        return this.getOneOrFail(req);
+        return this.getOneOrFailAndDisrupt(req);
       }
     }
   }
@@ -126,8 +129,39 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     throw new Error('Method not implemented.');
   }
 
-  updateOne(req: CrudRequest, dto: T): Promise<T> {
-    throw new Error('Method not implemented.');
+  async updateOne(req: CrudRequest, dto: T): Promise<T> {
+    const { allowParamsOverride, returnShallow } = req.options.routes.updateOneBase;
+    const paramsFilters = this.getParamFilters(req.parsed);
+    const foundSnapshot = await this.getOneOrFail(req, returnShallow);
+    const found = this.disruptDocumentSnapshot(foundSnapshot);
+    const toSave = !allowParamsOverride
+      ? {
+          ...found,
+          ...dto,
+          ...paramsFilters,
+          ...req.parsed.authPersist,
+          updatedAt: Timestamp.fromDate(new Date()),
+        }
+      : {
+          ...found,
+          ...dto,
+          ...req.parsed.authPersist,
+          updatedAt: Timestamp.fromDate(new Date()),
+        };
+
+    await foundSnapshot.ref.update(toSave);
+    const updatedSnapshot = await foundSnapshot.ref.get();
+    const updated = this.disruptDocumentSnapshot(updatedSnapshot);
+
+    if (returnShallow) {
+      return updated;
+    } else {
+      req.parsed.paramsFilter.forEach((filter) => {
+        filter.value = updated[filter.field];
+      });
+
+      return this.getOneOrFailAndDisrupt(req);
+    }
   }
 
   replaceOne(req: CrudRequest, dto: T): Promise<T> {
@@ -140,6 +174,19 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
 
   recoverOne(req: CrudRequest): Promise<void | T> {
     throw new Error('Method not implemented.');
+  }
+
+  public getParamFilters(parsed: CrudRequest['parsed']): ObjectLiteral {
+    let filters = {};
+
+    /* istanbul ignore else */
+    if (hasLength(parsed.paramsFilter)) {
+      for (const filter of parsed.paramsFilter) {
+        filters[filter.field] = filter.value;
+      }
+    }
+
+    return filters;
   }
 
   abstract convertDocumentSnapshot(
@@ -156,26 +203,33 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
       : undefined;
   }
 
-  protected async getOneById(id: any) {
-    return this.collection
-      .doc(id)
-      .get()
-      .then(this.disruptDocumentSnapshot);
+  protected async getOneOrFailAndDisrupt(
+    req: CrudRequest,
+    shallow = false,
+    withDeleted = false,
+  ): Promise<T> {
+    return this.getOneOrFail(req, shallow, withDeleted).then(
+      this.disruptDocumentSnapshot,
+    );
   }
 
   protected async getOneOrFail(
     req: CrudRequest,
     shallow = false,
     withDeleted = false,
-  ): Promise<T> {
+  ): Promise<DocumentSnapshot<DocumentData>> {
     const { parsed, options } = req;
 
     const id = this.getIdParameter(parsed);
 
     let collectionQuery = this.buildQuery(this.collection);
     collectionQuery = collectionQuery.where(FieldPath.documentId(), '==', id);
-    collectionQuery = this.selectFields(collectionQuery, parsed, options);
     collectionQuery = this.withDeleted(collectionQuery, withDeleted);
+
+    if (!shallow) {
+      collectionQuery = this.selectFields(collectionQuery, parsed, options);
+      collectionQuery = this.softDeleted(collectionQuery, parsed, options, withDeleted);
+    }
 
     const snapshotQuery = await collectionQuery.get();
 
@@ -183,11 +237,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
       this.throwNotFoundException(this.collectionName);
     }
 
-    return this.disruptQuerySnapshot(snapshotQuery)[0];
-  }
-
-  protected disruptQuerySnapshot(snapshot: QuerySnapshot<DocumentData>): T[] {
-    return snapshot.docs.map(this.disruptDocumentSnapshot);
+    return snapshotQuery.docs[0];
   }
 
   protected disruptDocumentSnapshot(snapshot: DocumentSnapshot<DocumentData>): any {

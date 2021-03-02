@@ -5,6 +5,7 @@ import {
   DocumentSnapshot,
   FieldPath,
   Query,
+  QuerySnapshot,
 } from '@google-cloud/firestore';
 import {
   CreateManyDto,
@@ -12,6 +13,7 @@ import {
   CrudRequestOptions,
   CrudService,
   GetManyDefaultResponse,
+  JoinOptions,
   QueryOptions,
 } from '@nestjsx/crud';
 import {
@@ -28,11 +30,14 @@ import {
   ComparisonOperator,
   ParsedRequestParams,
   QueryFilter,
+  QueryJoin,
   SCondition,
   SConditionKey,
 } from '@nestjsx/crud-request';
 
 import { CollectionMetadata } from './firestore/interfaces/collection-metadata.interface';
+import { combineLatest, defer, from, Observable } from 'rxjs';
+import { map, mergeMap, shareReplay, switchMap } from 'rxjs/operators';
 
 export abstract class FirestoreCrudService<T> extends CrudService<T> {
   protected collectionName: string;
@@ -126,15 +131,24 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     let collectionQuery = this.buildQuery(this.collection);
     collectionQuery = collectionQuery.where(FieldPath.documentId(), '==', id);
     collectionQuery = this.selectFields(collectionQuery, parsed, options);
-    collectionQuery = this.withDeleted(collectionQuery, parsed, options, withDeleted);
+    collectionQuery = this.withDeleted(collectionQuery, withDeleted);
 
-    const snapshotQuery = await collectionQuery.get();
+    const observable = from(collectionQuery.get());
+    console.log('Observable', observable);
+    const pipe = observable.pipe(
+      this.innerJoin(parsed, options),
+      shareReplay(1),
+    );
 
-    if (snapshotQuery.empty) {
-      this.throwNotFoundException(this.collectionName);
-    }
+    console.log('Pipe', pipe);
 
-    return this.convertDocumentSnapshot(snapshotQuery.docs[0]);
+    return pipe.toPromise() as any;
+
+    // if (snapshotQuery.empty) {
+    //   this.throwNotFoundException(this.collectionName);
+    // }
+
+    // return this.convertDocumentSnapshot(snapshotQuery.docs[0]);
   }
 
   protected buildQuery(
@@ -186,6 +200,94 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
         );
   }
 
+  protected innerJoin(parsed: ParsedRequestParams, options: CrudRequestOptions) {
+    return (source) => {
+      console.log('Source', source);
+
+      return defer(() => {
+        let collectionData;
+
+        return source.pipe(
+          switchMap((snapshot: any) => {
+            console.log('Snapshot', snapshot);
+            collectionData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+            const reads$ = [];
+            for (const doc of collectionData) {
+              reads$.push(
+                this.collection.firestore
+                  .collection('kitcategories')
+                  .where(
+                    'kit',
+                    '==',
+                    this.collection.firestore.collection('kits').doc(doc.id),
+                  )
+                  .get(),
+              );
+            }
+
+            return combineLatest(reads$);
+          }),
+          map((joins: any) => {
+            const collectionJoins = joins[0].docs.map((doc) => {
+              console.log('Doc Join', doc);
+              return { id: doc.id, ...doc.data() };
+            });
+            console.log('Joins', collectionJoins);
+            return collectionData.map((v, i) => {
+              return { ...v, kitcategories: collectionJoins[i] || null };
+            });
+          }),
+        );
+      });
+    };
+  }
+
+  protected join(
+    promiseQuery: Promise<QuerySnapshot<DocumentData>>,
+    parsed: ParsedRequestParams,
+    options: CrudRequestOptions,
+  ): Promise<QuerySnapshot<DocumentData>> {
+    // set joins
+    const joinOptions = options.query.join || {};
+    const allowedJoins = objKeys(joinOptions);
+
+    if (hasLength(allowedJoins)) {
+      const eagerJoins: any = {};
+
+      for (let i = 0; i < allowedJoins.length; i++) {
+        /* istanbul ignore else */
+        if (joinOptions[allowedJoins[i]].eager) {
+          const cond = parsed.join.find((j) => j && j.field === allowedJoins[i]) || {
+            field: allowedJoins[i],
+          };
+
+          promiseQuery = this.setJoin(promiseQuery, cond, joinOptions);
+          eagerJoins[allowedJoins[i]] = true;
+        }
+      }
+
+      if (isArrayFull(parsed.join)) {
+        for (let i = 0; i < parsed.join.length; i++) {
+          /* istanbul ignore else */
+          if (!eagerJoins[parsed.join[i].field]) {
+            promiseQuery = this.setJoin(promiseQuery, parsed.join[i], joinOptions);
+          }
+        }
+      }
+    }
+
+    return promiseQuery;
+  }
+
+  protected setJoin(
+    promiseQuery: Promise<QuerySnapshot<DocumentData>>,
+    cond: QueryJoin,
+    joinOptions: JoinOptions,
+  ): Promise<QuerySnapshot<DocumentData>> {
+    return promiseQuery;
+  }
+
   protected selectFields(
     query: Query<DocumentData>,
     parsed: ParsedRequestParams,
@@ -195,7 +297,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     return query.select(...select);
   }
 
-  protected withDeleted(
+  protected softDeleted(
     query: Query<DocumentData>,
     parsed: ParsedRequestParams,
     options: CrudRequestOptions,
@@ -205,6 +307,17 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
       if (parsed.includeDeleted === 1 || withDeleted) {
         return query.where(this.collectionDeleteField, '==', true);
       }
+    }
+
+    return query;
+  }
+
+  protected withDeleted(
+    query: Query<DocumentData>,
+    withDeleted: boolean = false,
+  ): Query<DocumentData> {
+    if (this.collectionHasDeleteField && withDeleted) {
+      return query.where(this.collectionDeleteField, '==', true);
     }
 
     return query;

@@ -98,25 +98,25 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     const newDocument = this.collection.doc();
     await newDocument.set({ ...entity, createdAt: now, updatedAt: now });
     const savedSnapshot = await newDocument.get();
-    const savedEntity = this.disruptDocumentSnapshot(savedSnapshot);
+    const saved = this.disruptDocumentSnapshot(savedSnapshot, req.options);
 
     if (returnShallow) {
-      return savedEntity;
+      return saved;
     } else {
       const primaryParams = this.getPrimaryParams(req.options);
 
       /* istanbul ignore next */
-      if (!primaryParams.length && primaryParams.some((p) => isNil(savedEntity[p]))) {
-        return savedEntity;
+      if (!primaryParams.length && primaryParams.some((p) => isNil(saved[p]))) {
+        return saved;
       } else {
         req.parsed.paramsFilter = primaryParams.map((p) => ({
           field: p,
           operator: '$eq',
-          value: savedEntity[p],
+          value: saved[p],
         }));
 
         req.parsed.search = primaryParams.reduce(
-          (acc, p) => ({ ...acc, [p]: savedEntity[p] }),
+          (acc, p) => ({ ...acc, [p]: saved[p] }),
           {},
         );
 
@@ -133,7 +133,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     const { allowParamsOverride, returnShallow } = req.options.routes.updateOneBase;
     const paramsFilters = this.getParamFilters(req.parsed);
     const foundSnapshot = await this.getOneOrFail(req, returnShallow);
-    const found = this.disruptDocumentSnapshot(foundSnapshot);
+    const found = this.disruptDocumentSnapshot(foundSnapshot, req.options);
     const toSave = !allowParamsOverride
       ? {
           ...found,
@@ -151,7 +151,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
 
     await foundSnapshot.ref.update(toSave);
     const updatedSnapshot = await foundSnapshot.ref.get();
-    const updated = this.disruptDocumentSnapshot(updatedSnapshot);
+    const updated = this.disruptDocumentSnapshot(updatedSnapshot, req.options);
 
     if (returnShallow) {
       return updated;
@@ -208,8 +208,8 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     shallow = false,
     withDeleted = false,
   ): Promise<T> {
-    return this.getOneOrFail(req, shallow, withDeleted).then(
-      this.disruptDocumentSnapshot,
+    return this.getOneOrFail(req, shallow, withDeleted).then((snapshot) =>
+      this.disruptDocumentSnapshot(snapshot, req.options),
     );
   }
 
@@ -220,7 +220,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
   ): Promise<DocumentSnapshot<DocumentData>> {
     const { parsed, options } = req;
 
-    const id = this.getIdParameter(parsed);
+    const id = this.getIdParameter(parsed, options);
 
     let collectionQuery = this.buildQuery(this.collection);
     collectionQuery = collectionQuery.where(FieldPath.documentId(), '==', id);
@@ -240,8 +240,13 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     return snapshotQuery.docs[0];
   }
 
-  protected disruptDocumentSnapshot(snapshot: DocumentSnapshot<DocumentData>): any {
-    return { id: snapshot.id, ...snapshot.data() };
+  protected disruptDocumentSnapshot(
+    snapshot: DocumentSnapshot<DocumentData>,
+    options: CrudRequestOptions,
+  ): any {
+    const primaryParams = this.getPrimaryParams(options);
+    const primaryFields = primaryParams.reduce((acc, p) => ({ [p]: snapshot.id }), {});
+    return { ...primaryFields, ...snapshot.data() };
   }
 
   protected buildQuery(
@@ -256,10 +261,12 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     return collection.orderBy(FieldPath.documentId(), 'desc');
   }
 
-  protected getIdParameter(parsed: ParsedRequestParams): any {
-    return parsed.paramsFilter.find(
-      (param) => param.field === 'id' && param.operator === '$eq',
-    ).value;
+  protected getIdParameter(
+    parsed: ParsedRequestParams,
+    options: CrudRequestOptions,
+  ): any {
+    const primaryParams = this.getPrimaryParams(options);
+    return parsed.paramsFilter.find(({ field }) => primaryParams.includes(field)).value;
   }
 
   protected getSelect(query: ParsedRequestParams, options: QueryOptions): string[] {

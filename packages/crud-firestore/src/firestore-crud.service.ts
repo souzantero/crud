@@ -33,6 +33,7 @@ import {
   ParsedRequestParams,
   QueryFilter,
   QueryJoin,
+  QuerySort,
   SCondition,
   SConditionKey,
 } from '@nestjsx/crud-request';
@@ -58,8 +59,10 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     this.onInitMapCollectionFields();
   }
 
-  getMany(req: CrudRequest): Promise<GetManyDefaultResponse<T> | T[]> {
-    throw new Error('Method not implemented.');
+  async getMany(req: CrudRequest): Promise<GetManyDefaultResponse<T> | T[]> {
+    const { parsed, options } = req;
+    const query = await this.createQuery(this.collection, parsed, options);
+    return this.doGetMany(query, parsed, options);
   }
 
   getOne(req: CrudRequest): Promise<T> {
@@ -225,6 +228,43 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     return this.getOneOrFailAndDisrupt(req);
   }
 
+  public async createQuery(
+    collection: CollectionReference<DocumentData>,
+    parsed: ParsedRequestParams,
+    options: CrudRequestOptions,
+    many = true,
+    withDeleted = false,
+  ): Promise<Query<DocumentData>> {
+    let query = collection.orderBy('createdAt', 'desc');
+
+    query = this.selectFields(query, parsed, options);
+    query = this.softDeleted(query, parsed, options, withDeleted);
+
+    if (many) {
+      // set sort (order by)
+      const sort = this.getSort(parsed, options.query);
+      Object.keys(sort).forEach((key) => {
+        query = query.orderBy(key, sort[key]);
+      });
+
+      // set take
+      const take = this.getTake(parsed, options.query);
+      /* istanbul ignore else */
+      if (isFinite(take)) {
+        query.limit(take);
+      }
+
+      // set skip
+      const skip = this.getSkip(parsed, take);
+      /* istanbul ignore else */
+      if (isFinite(skip)) {
+        query = query.offset(skip);
+      }
+    }
+
+    return query;
+  }
+
   public getParamFilters(parsed: CrudRequest['parsed']): ObjectLiteral {
     let filters = {};
 
@@ -236,6 +276,28 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     }
 
     return filters;
+  }
+
+  protected async doGetMany(
+    query: Query<DocumentData>,
+    parsed: ParsedRequestParams,
+    options: CrudRequestOptions,
+  ): Promise<GetManyDefaultResponse<any> | any[]> {
+    if (this.decidePagination(parsed, options)) {
+      const snapshot = await query.get();
+      const data = snapshot.docs.map((doc) => this.disruptDocumentSnapshot(doc, options));
+      const total = 0;
+      const limit = 0;
+      const offset = 0;
+
+      return this.createPageInfo(data, total, limit || total, offset || 0);
+    }
+
+    return query
+      .get()
+      .then((snapshot) =>
+        snapshot.docs.map((doc) => this.disruptDocumentSnapshot(doc, options)),
+      );
   }
 
   protected onInitMapCollectionFields() {
@@ -390,5 +452,23 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     }
 
     return { ...dto, ...authPersist };
+  }
+
+  protected getSort(query: ParsedRequestParams, options: QueryOptions) {
+    return query.sort && query.sort.length
+      ? this.mapSort(query.sort)
+      : options.sort && options.sort.length
+      ? this.mapSort(options.sort)
+      : {};
+  }
+
+  private mapSort(sort: QuerySort[]) {
+    const params: ObjectLiteral = {};
+
+    for (let i = 0; i < sort.length; i++) {
+      params[sort[i].field] = sort[i].order.toLowerCase();
+    }
+
+    return params;
   }
 }

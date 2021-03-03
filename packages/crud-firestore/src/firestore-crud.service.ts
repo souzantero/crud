@@ -54,25 +54,10 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     super();
 
     this.onInitMapCollectionFields();
-
-    console.log('Collection', collection);
-    console.log('Metadata', metadata);
-    console.log('.');
   }
 
   getMany(req: CrudRequest): Promise<GetManyDefaultResponse<T> | T[]> {
-    const { parsed, options } = req;
-
-    console.log(parsed);
-    console.log(options);
-
-    return Promise.resolve({
-      data: [],
-      count: 0,
-      total: 0,
-      page: 0,
-      pageCount: 0,
-    });
+    throw new Error('Method not implemented.');
   }
 
   getOne(req: CrudRequest): Promise<T> {
@@ -168,8 +153,16 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     throw new Error('Method not implemented.');
   }
 
-  deleteOne(req: CrudRequest): Promise<void | T> {
-    throw new Error('Method not implemented.');
+  async deleteOne(req: CrudRequest): Promise<void | T> {
+    const { returnDeleted } = req.options.routes.deleteOneBase;
+    const found = await this.getOneOrFail(req, returnDeleted);
+    const toReturn = this.disruptDocumentSnapshot(found, req.options);
+
+    req.options.query.softDelete === true
+      ? await found.ref.update({ [this.collectionDeleteField]: true })
+      : await found.ref.delete();
+
+    return toReturn;
   }
 
   async recoverOne(req: CrudRequest): Promise<void | T> {
@@ -194,10 +187,6 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
 
     return filters;
   }
-
-  abstract convertDocumentSnapshot(
-    snapshot: DocumentSnapshot<DocumentData>,
-  ): T | Promise<T>;
 
   protected onInitMapCollectionFields() {
     this.collectionName = this.metadata.name;
@@ -311,7 +300,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     options: CrudRequestOptions,
     withDeleted: boolean = false,
   ): Query<DocumentData> {
-    if (!options.query.softDelete) {
+    if (options.query.softDelete) {
       if (parsed.includeDeleted !== 1 && !withDeleted) {
         return this.onlyThoseNotDeleted(query);
       }

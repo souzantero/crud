@@ -37,6 +37,8 @@ import {
   SConditionKey,
 } from '@nestjsx/crud-request';
 
+import { oO } from '@zmotivat0r/o0';
+
 import { CollectionMetadata } from './firestore/interfaces/collection-metadata.interface';
 import { combineLatest, defer, from, Observable } from 'rxjs';
 import { map, mergeMap, shareReplay, switchMap } from 'rxjs/operators';
@@ -149,14 +151,62 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     }
   }
 
-  replaceOne(req: CrudRequest, dto: T): Promise<T> {
-    throw new Error('Method not implemented.');
+  async replaceOne(req: CrudRequest, dto: T): Promise<T> {
+    const { allowParamsOverride, returnShallow } = req.options.routes.replaceOneBase;
+    const paramsFilters = this.getParamFilters(req.parsed);
+    const [_, foundSnapshot] = await oO(this.getOneOrFail(req, returnShallow));
+    const found = this.disruptDocumentSnapshot(foundSnapshot, req.options);
+    const toSave = !allowParamsOverride
+      ? {
+          ...(found || {}),
+          ...dto,
+          ...paramsFilters,
+          ...req.parsed.authPersist,
+          updatedAt: Timestamp.fromDate(new Date()),
+        }
+      : {
+          ...(found || /* istanbul ignore next */ {}),
+          ...paramsFilters,
+          ...dto,
+          ...req.parsed.authPersist,
+          updatedAt: Timestamp.fromDate(new Date()),
+        };
+
+    await foundSnapshot.ref.update(toSave);
+    const replacedSnapshot = await foundSnapshot.ref.get();
+    const replaced = this.disruptDocumentSnapshot(replacedSnapshot, req.options);
+
+    if (returnShallow) {
+      return replaced;
+    } else {
+      const primaryParams = this.getPrimaryParams(req.options);
+
+      /* istanbul ignore if */
+      if (!primaryParams.length) {
+        return replaced;
+      }
+
+      req.parsed.paramsFilter = primaryParams.map((p) => ({
+        field: p,
+        operator: '$eq',
+        value: replaced[p],
+      }));
+
+      req.parsed.search = primaryParams.reduce(
+        (acc, p) => ({ ...acc, [p]: replaced[p] }),
+        {},
+      );
+
+      return this.getOneOrFailAndDisrupt(req);
+    }
   }
 
   async deleteOne(req: CrudRequest): Promise<void | T> {
     const { returnDeleted } = req.options.routes.deleteOneBase;
     const found = await this.getOneOrFail(req, returnDeleted);
-    const toReturn = this.disruptDocumentSnapshot(found, req.options);
+    const toReturn = returnDeleted
+      ? this.disruptDocumentSnapshot(found, req.options)
+      : undefined;
 
     req.options.query.softDelete === true
       ? await found.ref.update({ [this.collectionDeleteField]: true })

@@ -272,10 +272,10 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     if (!shallow) {
       collectionQuery = this.selectFields(collectionQuery, parsed, options);
       collectionQuery = this.softDeleted(collectionQuery, parsed, options, withDeleted);
-    }
-
-    if (!withDeleted) {
-      collectionQuery = this.onlyThoseNotDeleted(collectionQuery);
+    } else {
+      if (!withDeleted) {
+        collectionQuery = this.onlyThoseNotDeleted(collectionQuery);
+      }
     }
 
     const snapshotQuery = await collectionQuery.get();

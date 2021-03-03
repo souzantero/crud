@@ -243,8 +243,9 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     options: CrudRequestOptions,
   ): Query<DocumentData> {
     const primaryParam = this.getPrimaryParam(options);
-
-    const filters = [...parsed.paramsFilter, ...parsed.filter];
+    const filters = isArrayFull(options.query.filter)
+      ? [...(options.query.filter as []), ...parsed.paramsFilter, ...parsed.filter]
+      : [...parsed.paramsFilter, ...parsed.filter];
 
     let query: Query<DocumentData>;
 
@@ -318,16 +319,6 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     parsed: ParsedRequestParams,
     options: CrudRequestOptions,
   ): Promise<GetManyDefaultResponse<any> | any[]> {
-    if (this.decidePagination(parsed, options)) {
-      const snapshot = await query.get();
-      const data = snapshot.docs.map((doc) => this.disruptDocumentSnapshot(doc, options));
-      const total = 0;
-      const limit = 0;
-      const offset = 0;
-
-      return this.createPageInfo(data, total, limit || total, offset || 0);
-    }
-
     return query
       .get()
       .then((snapshot) =>

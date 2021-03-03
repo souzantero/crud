@@ -45,6 +45,17 @@ import { combineLatest, defer, from, Observable } from 'rxjs';
 import { map, mergeMap, shareReplay, switchMap } from 'rxjs/operators';
 
 export abstract class FirestoreCrudService<T> extends CrudService<T> {
+  protected readonly queryFilterOperatorsMap = {
+    $eq: '==',
+    $ne: '!=',
+    $gt: '>',
+    $lt: '<',
+    $gte: '>=',
+    $lte: '<=',
+    $in: 'in',
+    $notin: 'not-in',
+  };
+
   protected collectionName: string;
   protected collectionFields: string[];
   protected collectionHasDeleteField: boolean = false;
@@ -104,11 +115,6 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
           operator: '$eq',
           value: saved[p],
         }));
-
-        req.parsed.search = primaryParams.reduce(
-          (acc, p) => ({ ...acc, [p]: saved[p] }),
-          {},
-        );
 
         return this.getOneOrFailAndDisrupt(req);
       }
@@ -195,11 +201,6 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
         value: replaced[p],
       }));
 
-      req.parsed.search = primaryParams.reduce(
-        (acc, p) => ({ ...acc, [p]: replaced[p] }),
-        {},
-      );
-
       return this.getOneOrFailAndDisrupt(req);
     }
   }
@@ -228,6 +229,34 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     return this.getOneOrFailAndDisrupt(req);
   }
 
+  private getDefaultSearchCondition(
+    collection: CollectionReference<DocumentData>,
+    parsed: ParsedRequestParams,
+    options: CrudRequestOptions,
+  ): Query<DocumentData> {
+    const primaryParams = this.getPrimaryParams(options);
+
+    const filters = [...parsed.paramsFilter, ...parsed.filter];
+
+    let query: Query<DocumentData>;
+
+    filters.forEach((filter) => {
+      const field = primaryParams.includes(filter.field)
+        ? FieldPath.documentId()
+        : filter.field;
+      const operator = this.queryFilterOperatorsMap[filter.operator];
+      const value = filter.value;
+
+      if (!query) {
+        query = collection.where(field, operator, value);
+      } else {
+        query = query.where(field, operator, value);
+      }
+    });
+
+    return query;
+  }
+
   public async createQuery(
     collection: CollectionReference<DocumentData>,
     parsed: ParsedRequestParams,
@@ -235,7 +264,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     many = true,
     withDeleted = false,
   ): Promise<Query<DocumentData>> {
-    let query = collection.orderBy('createdAt', 'desc');
+    let query = this.getDefaultSearchCondition(collection, parsed, options);
 
     query = this.selectFields(query, parsed, options);
     query = this.softDeleted(query, parsed, options, withDeleted);
@@ -250,14 +279,14 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
       // set take
       const take = this.getTake(parsed, options.query);
       /* istanbul ignore else */
-      if (isFinite(take)) {
+      if (take && isFinite(take)) {
         query.limit(take);
       }
 
       // set skip
       const skip = this.getSkip(parsed, take);
       /* istanbul ignore else */
-      if (isFinite(skip)) {
+      if (skip && isFinite(skip)) {
         query = query.offset(skip);
       }
     }
@@ -327,26 +356,24 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
   ): Promise<DocumentSnapshot<DocumentData>> {
     const { parsed, options } = req;
 
-    const id = this.getIdParameter(parsed, options);
+    let query: Query<DocumentData>;
+    if (shallow) {
+      query = this.getDefaultSearchCondition(this.collection, parsed, options);
 
-    let collectionQuery = this.collection.where(FieldPath.documentId(), '==', id);
-
-    if (!shallow) {
-      collectionQuery = this.selectFields(collectionQuery, parsed, options);
-      collectionQuery = this.softDeleted(collectionQuery, parsed, options, withDeleted);
-    } else {
       if (!withDeleted) {
-        collectionQuery = this.onlyThoseNotDeleted(collectionQuery);
+        query = this.onlyThoseNotDeleted(query);
       }
+    } else {
+      query = await this.createQuery(this.collection, parsed, options, true, withDeleted);
     }
 
-    const snapshotQuery = await collectionQuery.get();
+    const snapshot = await query.get();
 
-    if (snapshotQuery.empty) {
+    if (snapshot.empty) {
       this.throwNotFoundException(this.collectionName);
     }
 
-    return snapshotQuery.docs[0];
+    return snapshot.docs[0];
   }
 
   protected disruptDocumentSnapshot(

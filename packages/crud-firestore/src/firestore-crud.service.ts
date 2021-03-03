@@ -104,17 +104,19 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     if (returnShallow) {
       return saved;
     } else {
-      const primaryParams = this.getPrimaryParams(req.options);
+      const primaryParam = this.getPrimaryParam(req.options);
 
       /* istanbul ignore next */
-      if (!primaryParams.length && primaryParams.some((p) => isNil(saved[p]))) {
+      if (!primaryParam || isNil(saved[primaryParam])) {
         return saved;
       } else {
-        req.parsed.paramsFilter = primaryParams.map((p) => ({
-          field: p,
-          operator: '$eq',
-          value: saved[p],
-        }));
+        req.parsed.paramsFilter = [
+          {
+            field: primaryParam,
+            operator: '$eq',
+            value: saved[primaryParam],
+          },
+        ];
 
         return this.getOneOrFailAndDisrupt(req);
       }
@@ -188,18 +190,20 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     if (returnShallow) {
       return replaced;
     } else {
-      const primaryParams = this.getPrimaryParams(req.options);
+      const primaryParam = this.getPrimaryParam(req.options);
 
       /* istanbul ignore if */
-      if (!primaryParams.length) {
+      if (!primaryParam) {
         return replaced;
       }
 
-      req.parsed.paramsFilter = primaryParams.map((p) => ({
-        field: p,
-        operator: '$eq',
-        value: replaced[p],
-      }));
+      req.parsed.paramsFilter = [
+        {
+          field: primaryParam,
+          operator: '$eq',
+          value: replaced[primaryParam],
+        },
+      ];
 
       return this.getOneOrFailAndDisrupt(req);
     }
@@ -229,21 +233,23 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     return this.getOneOrFailAndDisrupt(req);
   }
 
+  private getPrimaryParam(options: CrudRequestOptions): string {
+    return this.getPrimaryParams(options)[0];
+  }
+
   private getDefaultSearchCondition(
     collection: CollectionReference<DocumentData>,
     parsed: ParsedRequestParams,
     options: CrudRequestOptions,
   ): Query<DocumentData> {
-    const primaryParams = this.getPrimaryParams(options);
+    const primaryParam = this.getPrimaryParam(options);
 
     const filters = [...parsed.paramsFilter, ...parsed.filter];
 
     let query: Query<DocumentData>;
 
     filters.forEach((filter) => {
-      const field = primaryParams.includes(filter.field)
-        ? FieldPath.documentId()
-        : filter.field;
+      const field = filter.field === primaryParam ? FieldPath.documentId() : filter.field;
       const operator = this.queryFilterOperatorsMap[filter.operator];
       const value = filter.value;
 
@@ -380,17 +386,9 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     snapshot: DocumentSnapshot<DocumentData>,
     options: CrudRequestOptions,
   ): any {
-    const primaryParams = this.getPrimaryParams(options);
-    const primaryFields = primaryParams.reduce((acc, p) => ({ [p]: snapshot.id }), {});
+    const primaryParam = this.getPrimaryParam(options);
+    const primaryFields = { [primaryParam]: snapshot.id };
     return { ...primaryFields, ...snapshot.data() };
-  }
-
-  protected getIdParameter(
-    parsed: ParsedRequestParams,
-    options: CrudRequestOptions,
-  ): any {
-    const primaryParams = this.getPrimaryParams(options);
-    return parsed.paramsFilter.find(({ field }) => primaryParams.includes(field)).value;
   }
 
   protected getSelect(query: ParsedRequestParams, options: QueryOptions): string[] {

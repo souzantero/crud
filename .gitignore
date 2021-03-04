@@ -20,4 +20,3 @@ lerna-debug.log
 # dist
 packages/**/lib
 packages/**/tsconfig.tsbuildinfo
-integration/crud-firestore

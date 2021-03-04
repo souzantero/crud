@@ -2,6 +2,10 @@ export function getCollectionToken(collectionName: string): string {
   return `${collectionName}Provider`;
 }
 
-export function getMetadataToken(collectionName: string): string {
-  return `${collectionName}Metadata`;
+export function getDefinitionToken(collectionName: string): string {
+  return `${collectionName}Definition`;
+}
+
+export function getProjectToken(name: string): string {
+  return `${name}Project`;
 }

@@ -40,7 +40,7 @@ import {
 
 import { oO } from '@zmotivat0r/o0';
 
-import { CollectionMetadata } from './firestore/interfaces/collection-metadata.interface';
+import { CollectionDefinition } from './firestore/interfaces/collection-definition.interface';
 import { combineLatest, defer, from, Observable } from 'rxjs';
 import { map, mergeMap, shareReplay, switchMap } from 'rxjs/operators';
 
@@ -63,7 +63,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
 
   constructor(
     protected collection: CollectionReference<DocumentData>,
-    protected metadata: CollectionMetadata,
+    protected metadata: CollectionDefinition,
   ) {
     super();
 

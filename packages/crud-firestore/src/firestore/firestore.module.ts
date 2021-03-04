@@ -1,15 +1,17 @@
-import { DynamicModule, Module } from '@nestjs/common';
-import { CollectionReference, DocumentData } from '@google-cloud/firestore';
+import { DynamicModule, Module, Provider } from '@nestjs/common';
+import { Firestore } from '@google-cloud/firestore';
 import { FirestoreCoreModule } from './firestore-core.module';
-import { FirestoreProvider } from './firestore.provider';
-import { FIRESTORE_PROVIDER } from './firestore.constants';
-import { getCollectionToken, getMetadataToken } from './firestore.utils';
+import {
+  getCollectionToken,
+  getProjectToken,
+  getDefinitionToken,
+} from './firestore.utils';
 
 import {
-  FirestoreFeatureOptions,
+  FirestoreModuleAsyncOptions,
   FirestoreModuleOptions,
 } from './interfaces/firestore-options.interface';
-import { CollectionMetadata } from './interfaces/collection-metadata.interface';
+import { CollectionDefinition } from './interfaces/collection-definition.interface';
 
 @Module({})
 export class FirestoreModule {
@@ -20,26 +22,30 @@ export class FirestoreModule {
     };
   }
 
-  static forFeature(options: FirestoreFeatureOptions): DynamicModule {
-    const collectionToken = getCollectionToken(options.name);
-    const metadataToken = getMetadataToken(options.name);
+  static forFeature(
+    collections: CollectionDefinition[] = [],
+    projectId: string,
+  ): DynamicModule {
+    const providers = collections.reduce(
+      (providers, collection) => [
+        ...providers,
+        {
+          provide: getCollectionToken(collection.name),
+          useFactory: (firestore: Firestore) => firestore.collection(collection.name),
+          inject: [getProjectToken(projectId)],
+        },
+        {
+          provide: getDefinitionToken(collection.name),
+          useValue: collection,
+        },
+      ],
+      [] as Provider[],
+    );
 
     return {
       module: FirestoreModule,
-      providers: [
-        {
-          provide: collectionToken,
-          useFactory: (firestoreProvider: FirestoreProvider) => {
-            return firestoreProvider.get().collection(options.name);
-          },
-          inject: [FIRESTORE_PROVIDER],
-        },
-        {
-          provide: metadataToken,
-          useValue: options,
-        },
-      ],
-      exports: [collectionToken, metadataToken],
+      providers: providers,
+      exports: providers,
     };
   }
 }

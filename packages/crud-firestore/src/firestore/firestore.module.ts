@@ -22,6 +22,13 @@ export class FirestoreModule {
     };
   }
 
+  static forRootAsync(options: FirestoreModuleAsyncOptions): DynamicModule {
+    return {
+      module: FirestoreModule,
+      imports: [FirestoreCoreModule.forRootAsync(options)],
+    };
+  }
+
   static forFeature(
     collections: CollectionDefinition[] = [],
     projectId: string,

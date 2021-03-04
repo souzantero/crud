@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { FirestoreModule } from 'crud-firestore/lib';
+import { FirestoreModule } from '@nestjsx/crud-firestore';
 import { CommentsController } from './comments.controller';
 import { CommentsService } from './comments.service';
 
 @Module({
   imports: [
-    FirestoreModule.forFeature('', [
+    FirestoreModule.forFeature(process.env.FIRESTORE_PROJECT_ID, [
       {
         name: 'comments',
         fields: []

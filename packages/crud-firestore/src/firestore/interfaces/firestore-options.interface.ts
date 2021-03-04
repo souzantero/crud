@@ -3,16 +3,21 @@ import { Settings } from '@google-cloud/firestore';
 
 export interface FirestoreModuleOptions extends Settings, Record<string, any> {}
 
-export interface FirestoreModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
-  projectId: string;
+export interface FirestoreModuleAsyncOptions
+  extends Pick<ModuleMetadata, 'imports'>,
+    Pick<FirestoreModuleOptions, 'projectId'> {
   useExisting?: Type<FirestoreOptionsFactory>;
   useClass?: Type<FirestoreOptionsFactory>;
   useFactory?: (
     ...args: any[]
-  ) => Promise<FirestoreModuleOptions> | FirestoreModuleOptions;
+  ) =>
+    | Promise<FirestoreModuleOptions['credentials']>
+    | FirestoreModuleOptions['credentials'];
   inject?: any[];
 }
 
 export interface FirestoreOptionsFactory {
-  createFirestoreOptions(): Promise<FirestoreModuleOptions> | FirestoreModuleOptions;
+  createFirestoreCredentials():
+    | Promise<FirestoreModuleOptions['credentials']>
+    | FirestoreModuleOptions['credentials'];
 }

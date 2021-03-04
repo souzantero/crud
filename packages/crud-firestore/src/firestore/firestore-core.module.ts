@@ -1,12 +1,15 @@
 import { DynamicModule, Global, Module, Provider, Type } from '@nestjs/common';
-import { FIRESTORE_MODULE_OPTIONS, FIRESTORE_PROJECT_NAME } from './firestore.constants';
+import {
+  FIRESTORE_MODULE_CREDENTIALS,
+  FIRESTORE_PROJECT_NAME,
+} from './firestore.constants';
 
 import {
   FirestoreModuleOptions,
   FirestoreModuleAsyncOptions,
   FirestoreOptionsFactory,
 } from './interfaces/firestore-options.interface';
-import { Firestore } from '@google-cloud/firestore';
+import { Firestore, Settings } from '@google-cloud/firestore';
 import { getProjectToken } from './firestore.utils';
 
 @Global()
@@ -42,9 +45,9 @@ export class FirestoreCoreModule {
 
     const firestoreProvider = {
       provide: projectName,
-      useFactory: (firestoreModuleOptions: FirestoreModuleOptions) =>
-        new Firestore(firestoreModuleOptions),
-      inject: [FIRESTORE_MODULE_OPTIONS],
+      useFactory: (credentials: Settings['credentials']) =>
+        new Firestore({ projectId: options.projectId, credentials }),
+      inject: [FIRESTORE_MODULE_CREDENTIALS],
     };
 
     const asyncProviders = this.createAsyncProviders(options);
@@ -76,7 +79,7 @@ export class FirestoreCoreModule {
   ): Provider {
     if (options.useFactory) {
       return {
-        provide: FIRESTORE_MODULE_OPTIONS,
+        provide: FIRESTORE_MODULE_CREDENTIALS,
         useFactory: options.useFactory,
         inject: options.inject || [],
       };
@@ -86,9 +89,9 @@ export class FirestoreCoreModule {
       (options.useClass || options.useExisting) as Type<FirestoreOptionsFactory>,
     ];
     return {
-      provide: FIRESTORE_MODULE_OPTIONS,
+      provide: FIRESTORE_MODULE_CREDENTIALS,
       useFactory: async (optionsFactory: FirestoreOptionsFactory) =>
-        await optionsFactory.createFirestoreOptions(),
+        await optionsFactory.createFirestoreCredentials(),
       inject,
     };
   }

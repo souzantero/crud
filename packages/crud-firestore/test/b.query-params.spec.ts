@@ -17,7 +17,7 @@ import { SettingsModule } from '../../../integration/crud-firestore/shared/setti
 import { User } from '../../../integration/crud-firestore/users';
 import { userSchema } from '../../../integration/crud-firestore/users/user.schema';
 import { Crud } from '../../crud/src/decorators';
-import { deleteCollection } from './utils.spec';
+import { deleteCollection } from './test-utils';
 import { UsersService } from './__fixture__/users.service';
 
 // tslint:disable:max-classes-per-file

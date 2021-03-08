@@ -96,7 +96,12 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
       entity = { ...entity, [this.collectionDeleteField]: false };
     }
 
-    const newDocument = this.collection.doc();
+    const primaryParam = this.getPrimaryParam(req.options);
+
+    const newDocument = entity[primaryParam]
+      ? this.collection.doc(entity[primaryParam])
+      : this.collection.doc();
+
     await newDocument.set({ ...entity, createdAt: now, updatedAt: now });
     const savedSnapshot = await newDocument.get();
     const saved = this.disruptDocumentSnapshot(savedSnapshot, req.options);
@@ -104,8 +109,6 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     if (returnShallow) {
       return saved;
     } else {
-      const primaryParam = this.getPrimaryParam(req.options);
-
       /* istanbul ignore next */
       if (!primaryParam || isNil(saved[primaryParam])) {
         return saved;
@@ -123,8 +126,42 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     }
   }
 
-  createMany(req: CrudRequest, dto: CreateManyDto<any>): Promise<T[]> {
-    throw new Error('Method not implemented.');
+  async createMany(req: CrudRequest, dto: CreateManyDto<any>): Promise<T[]> {
+    /* istanbul ignore if */
+    if (!isObject(dto) || !isArrayFull(dto.bulk)) {
+      this.throwBadRequestException(`Empty data. Nothing to save.`);
+    }
+
+    const bulk = dto.bulk
+      .map((one) => this.prepareEntityBeforeSave(one, req.parsed))
+      .filter((d) => !isUndefined(d));
+
+    if (!hasLength(bulk)) {
+      this.throwBadRequestException(`Empty data. Nothing to save.`);
+    }
+
+    const now = Timestamp.fromDate(new Date());
+    const docs: DocumentReference<DocumentData>[] = [];
+
+    const batch = this.collection.firestore.batch();
+    bulk.forEach((entity) => {
+      if (this.collectionHasDeleteField) {
+        entity = { ...entity, [this.collectionDeleteField]: false };
+      }
+
+      entity = { ...entity, createdAt: now, updatedAt: now };
+
+      const primaryParam = this.getPrimaryParam(req.options);
+      const doc = entity[primaryParam]
+        ? this.collection.doc(entity[primaryParam])
+        : this.collection.doc();
+      batch.set(doc, entity);
+      docs.push(doc);
+    });
+
+    await batch.commit();
+
+    return docs.map((doc) => ({ id: doc.id })) as any[];
   }
 
   async updateOne(req: CrudRequest, dto: T): Promise<T> {

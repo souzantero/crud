@@ -14,7 +14,7 @@ import { seedUsers } from '../../../integration/crud-firestore/seeds';
 import { SettingsModule } from '../../../integration/crud-firestore/shared/settings/settings.module';
 import { User } from '../../../integration/crud-firestore/users';
 import { userSchema } from '../../../integration/crud-firestore/users/user.schema';
-import { deleteCollection, insertCollection } from './utils.spec';
+import { deleteCollection, insertCollection } from './test-utils';
 
 import { UsersService } from './__fixture__/users.service';
 

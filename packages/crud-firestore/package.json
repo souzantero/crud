@@ -1,5 +1,5 @@
 {
-  "name": "@nestjsx/crud-firestore",
+  "name": "nest-crud-firestore",
   "description": "NestJs CRUD for RESTful APIs - Firestore",
   "version": "5.0.0-alpha.3",
   "license": "MIT",

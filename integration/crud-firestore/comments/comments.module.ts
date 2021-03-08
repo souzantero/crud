@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { FirestoreModule } from '@nestjsx/crud-firestore';
+import { FirestoreModule } from 'nest-crud-firestore';
 import { postSchema } from '../posts/post.schema';
 import { CommentsController } from './comments.controller';
 import { CommentsService } from './comments.service';

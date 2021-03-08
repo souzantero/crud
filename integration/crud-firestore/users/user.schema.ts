@@ -1,4 +1,4 @@
-import { CollectionSchema } from "@nestjsx/crud-firestore";
+import { CollectionSchema } from "nest-crud-firestore";
 
 export const userSchema = {
     name: 'users',

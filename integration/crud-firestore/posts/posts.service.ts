@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PostDocument } from './post.document';
-import { CollectionSchema, FirestoreCrudService, InjectCollection, InjectSchema } from '@nestjsx/crud-firestore';
+import { CollectionSchema, FirestoreCrudService, InjectCollection, InjectSchema } from 'nest-crud-firestore';
 import { CollectionReference, DocumentData } from '@google-cloud/firestore';
 
 @Injectable()

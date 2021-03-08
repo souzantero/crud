@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>CRUD (@nestjsx/crud-firestore)</h1>
+  <h1>CRUD (nest-crud-firestore)</h1>
 </div>
 <div align="center">
   <strong>for RESTful APIs built with NestJs</strong>

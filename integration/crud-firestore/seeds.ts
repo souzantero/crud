@@ -12,16 +12,15 @@ export const seedUsers = [
 
 export const seedPosts = [
   {
-    id: '1',
     title: 'Title 1',
     userId: '5de34417cd5e475f96a46583',
-    _id: '5de34417cd5e475f96a46583'
+    id: '5de34417cd5e475f96a46583'
   },
 ];
 
 export const seedComments = [
   {
-    _id: '5de34417cd5e475f96a46584',
+    id: '5de34417cd5e475f96a46584',
     postId: '5de34417cd5e475f96a46583',
     userId: '5de34417cd5e475f96a46583',
   },

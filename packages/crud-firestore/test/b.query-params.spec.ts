@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import { FirestoreModule } from '@nestjsx/crud-firestore';
 import { RequestQueryBuilder } from '@nestjsx/crud-request';
 import 'jest-extended';
+import { skip } from 'rxjs/operators';
 import * as request from 'supertest';
 import {
   commentSchema,
@@ -12,17 +13,21 @@ import {
 } from '../../../integration/crud-firestore/comments';
 import { PostsService } from '../../../integration/crud-firestore/posts';
 import { postSchema } from '../../../integration/crud-firestore/posts/post.schema';
-import { seedPosts } from '../../../integration/crud-firestore/seeds';
+import {
+  seedComments,
+  seedPosts,
+  seedUsers,
+} from '../../../integration/crud-firestore/seeds';
 import { SettingsModule } from '../../../integration/crud-firestore/shared/settings/settings.module';
 import { User } from '../../../integration/crud-firestore/users';
 import { userSchema } from '../../../integration/crud-firestore/users/user.schema';
 import { Crud } from '../../crud/src/decorators';
-import { deleteCollection } from './test-utils';
+import { deleteCollection, insertCollection } from './test-utils';
 import { UsersService } from './__fixture__/users.service';
 
 // tslint:disable:max-classes-per-file
 describe('#crud-firestore', () => {
-  describe.skip('#query params', () => {
+  describe('#query params', () => {
     let app: INestApplication;
     let server: any;
     let qb: RequestQueryBuilder;
@@ -94,15 +99,15 @@ describe('#crud-firestore', () => {
       qb = RequestQueryBuilder.create();
       usersCollection = userService.collection;
       await deleteCollection(usersCollection);
-      //   await userModel.create(seedUsers);
+      await insertCollection(usersCollection, seedUsers);
 
       postsCollection = postsService.collection;
       await deleteCollection(postsCollection);
-      //   await postsModel.create(seedPosts);
+      await insertCollection(postsCollection, seedPosts);
 
       commentsCollection = commentsService.collection;
       await deleteCollection(commentsCollection);
-      //   await commentsModel.create(seedComments);
+      await insertCollection(commentsCollection, seedComments);
     });
 
     afterAll(async () => {
@@ -248,7 +253,7 @@ describe('#crud-firestore', () => {
     //   });
     // });
     //
-    describe('#query join', () => {
+    describe.skip('#query join', () => {
       it('should return joined entity, 1', (done) => {
         const query = qb.setJoin({ field: 'posts', select: ['title'] }).query();
 
@@ -261,7 +266,7 @@ describe('#crud-firestore', () => {
             expect(res.status).toBe(200);
             expect(res.body.posts).toEqual([
               {
-                _id: post._id,
+                _id: post.id,
                 userId: '5de34417cd5e475f96a46583',
                 title: post.title,
               },

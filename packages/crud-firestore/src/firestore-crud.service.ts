@@ -62,8 +62,8 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
   protected collectionDeleteField: string;
 
   constructor(
-    protected collection: CollectionReference<DocumentData>,
-    protected metadata: CollectionSchema,
+    public collection: CollectionReference<DocumentData>,
+    public metadata: CollectionSchema,
   ) {
     super();
 
@@ -241,7 +241,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     collection: CollectionReference<DocumentData>,
     parsed: ParsedRequestParams,
     options: CrudRequestOptions,
-  ): Query<DocumentData> {
+  ): Query<DocumentData> | CollectionReference<DocumentData> {
     const primaryParam = this.getPrimaryParam(options);
     const filters = isArrayFull(options.query.filter)
       ? [...(options.query.filter as []), ...parsed.paramsFilter, ...parsed.filter]
@@ -261,7 +261,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
       }
     });
 
-    return query;
+    return query || collection;
   }
 
   public async createQuery(
@@ -287,7 +287,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
       const take = this.getTake(parsed, options.query);
       /* istanbul ignore else */
       if (take && isFinite(take)) {
-        query.limit(take);
+        query = query.limit(take);
       }
 
       // set skip

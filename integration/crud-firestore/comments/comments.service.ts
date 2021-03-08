@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CollectionDefinition, FirestoreCrudService, InjectCollection, InjectDefinition } from '@nestjsx/crud-firestore';
+import { CollectionSchema, FirestoreCrudService, InjectCollection, InjectSchema } from '@nestjsx/crud-firestore';
 import { CommentDocument } from './comment.document';
 import { CollectionReference, DocumentData } from '@google-cloud/firestore';
 
@@ -7,7 +7,7 @@ import { CollectionReference, DocumentData } from '@google-cloud/firestore';
 export class CommentsService extends FirestoreCrudService<CommentDocument> {
   constructor(
     @InjectCollection('comments') collection: CollectionReference<DocumentData>,
-    @InjectDefinition('comments') definition: CollectionDefinition
+    @InjectSchema('comments') definition: CollectionSchema
   ) {
     super(collection, definition);
   }

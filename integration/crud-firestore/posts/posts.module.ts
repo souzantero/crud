@@ -1,16 +1,12 @@
 import { Module } from '@nestjs/common';
 import { FirestoreModule } from '@nestjsx/crud-firestore';
+import { postSchema } from './post.schema';
 import { PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
 
 @Module({
   imports: [
-    FirestoreModule.forFeature(process.env.FIRESTORE_PROJECT_ID, [
-      {
-        name: 'posts',
-        fields: []
-      }
-    ])
+    FirestoreModule.forFeature(process.env.FIRESTORE_PROJECT_ID, [postSchema])
   ],
   controllers: [PostsController],
   providers: [PostsService],

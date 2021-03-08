@@ -1,17 +1,13 @@
 import { DynamicModule, flatten, Module, Provider } from '@nestjs/common';
 import { Firestore } from '@google-cloud/firestore';
 import { FirestoreCoreModule } from './firestore-core.module';
-import {
-  getCollectionToken,
-  getProjectToken,
-  getDefinitionToken,
-} from './firestore.utils';
+import { getCollectionToken, getProjectToken, getSchemaToken } from './firestore.utils';
 
 import {
   FirestoreModuleAsyncOptions,
   FirestoreModuleOptions,
 } from './interfaces/firestore-options.interface';
-import { CollectionDefinition } from './interfaces/collection-definition.interface';
+import { CollectionSchema } from './interfaces/collection-schema.interface';
 import { AsyncCollectionFactory } from './interfaces/async-collection-factory.interface';
 
 @Module({})
@@ -32,13 +28,13 @@ export class FirestoreModule {
 
   static forFeature(
     projectId: string,
-    collections: CollectionDefinition[] = [],
+    collections: CollectionSchema[] = [],
   ): DynamicModule {
     const providers = collections.reduce(
       (providers, collection) => [
         ...providers,
         {
-          provide: getDefinitionToken(collection.name),
+          provide: getSchemaToken(collection.name),
           useValue: collection,
         },
         {
@@ -68,7 +64,7 @@ export class FirestoreModule {
       (providers, factory) => [
         ...providers,
         {
-          provide: getDefinitionToken(factory.name),
+          provide: getSchemaToken(factory.name),
           useFactory: async (...args: unknown[]) => {
             const fields = await factory.useFactory(...args);
             return { name: factory.name, fields };

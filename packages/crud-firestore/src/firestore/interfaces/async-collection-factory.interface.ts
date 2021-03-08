@@ -1,11 +1,11 @@
 import { ModuleMetadata } from '@nestjs/common/interfaces';
-import { CollectionDefinition } from './collection-definition.interface';
+import { CollectionSchema } from './collection-schema.interface';
 
 export interface AsyncCollectionFactory
   extends Pick<ModuleMetadata, 'imports'>,
-    Pick<CollectionDefinition, 'name'> {
+    Pick<CollectionSchema, 'name'> {
   useFactory: (
     ...args: any[]
-  ) => CollectionDefinition['fields'] | Promise<CollectionDefinition['fields']>;
+  ) => CollectionSchema['fields'] | Promise<CollectionSchema['fields']>;
   inject?: any[];
 }

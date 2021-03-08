@@ -3,7 +3,7 @@ export interface CollectionField {
   isDeleteFlag?: boolean;
 }
 
-export interface CollectionDefinition {
+export interface CollectionSchema {
   name: string;
   fields: CollectionField[];
 }

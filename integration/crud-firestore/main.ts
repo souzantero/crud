@@ -24,8 +24,8 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   const options = new DocumentBuilder()
-    .setTitle('nest-crud-firestore')
-    .setDescription('nest-crud-firestore')
+    .setTitle('nestjsx-crud-firestore')
+    .setDescription('nestjsx-crud-firestore')
     .setVersion('1.0')
     .build();
   const document = SwaggerModule.createDocument(app, options);

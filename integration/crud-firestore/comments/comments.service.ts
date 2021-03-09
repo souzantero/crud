@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CollectionSchema, FirestoreCrudService, InjectCollection, InjectSchema } from 'nest-crud-firestore';
+import { CollectionSchema, FirestoreCrudService, InjectCollection, InjectSchema } from 'nestjsx-crud-firestore';
 import { CommentDocument } from './comment.document';
 import { CollectionReference, DocumentData } from '@google-cloud/firestore';
 

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { FirestoreModule } from 'nest-crud-firestore';
+import { FirestoreModule } from 'nestjsx-crud-firestore';
 import { PostsModule } from './posts/posts.module';
 import { SettingsModule } from './shared/settings/settings.module';
 import { UsersModule } from './users/users.module';

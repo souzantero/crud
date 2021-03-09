@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 
 import { Crud } from '@nestjsx/crud';
-import { FirestoreModule } from 'nest-crud-firestore';
+import { FirestoreModule } from 'nestjsx-crud-firestore';
 import { RequestQueryBuilder } from '@nestjsx/crud-request';
 import { Exclude } from 'class-transformer';
 import * as request from 'supertest';

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { FirestoreModule } from 'nest-crud-firestore';
+import { FirestoreModule } from 'nestjsx-crud-firestore';
 import { userSchema } from './user.schema';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';

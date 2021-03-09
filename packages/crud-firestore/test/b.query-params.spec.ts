@@ -2,7 +2,7 @@ import { CollectionReference, DocumentData } from '@google-cloud/firestore';
 import { Controller, INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { FirestoreModule } from 'nest-crud-firestore';
+import { FirestoreModule } from 'nestjsx-crud-firestore';
 import { RequestQueryBuilder } from '@nestjsx/crud-request';
 import 'jest-extended';
 import { skip } from 'rxjs/operators';

@@ -4,7 +4,7 @@ import {
   FirestoreCrudService,
   InjectCollection,
   InjectSchema,
-} from 'nest-crud-firestore';
+} from 'nestjsx-crud-firestore';
 import { CollectionReference, DocumentData } from '@google-cloud/firestore';
 import { UserDocument } from '../../../../integration/crud-firestore/users/user.document';
 

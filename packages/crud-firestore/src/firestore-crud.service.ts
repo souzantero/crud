@@ -76,8 +76,8 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     return this.doGetMany(query, parsed, options);
   }
 
-  getOne(req: CrudRequest): Promise<T> {
-    return this.getOneOrFailAndDisrupt(req);
+  async getOne(req: CrudRequest): Promise<T> {
+    return await this.getOneOrFailAndDisrupt(req).then(this.toEntity);
   }
 
   async createOne(req: CrudRequest, dto: T): Promise<T> {
@@ -107,11 +107,11 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     const saved = this.disruptDocumentSnapshot(savedSnapshot, req.options);
 
     if (returnShallow) {
-      return saved;
+      return this.toEntity(saved);
     } else {
       /* istanbul ignore next */
       if (!primaryParam || isNil(saved[primaryParam])) {
-        return saved;
+        return this.toEntity(saved);
       } else {
         req.parsed.paramsFilter = [
           {
@@ -121,7 +121,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
           },
         ];
 
-        return this.getOneOrFailAndDisrupt(req);
+        return this.getOneOrFailAndDisrupt(req).then(this.toEntity);
       }
     }
   }
@@ -189,13 +189,13 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     const updated = this.disruptDocumentSnapshot(updatedSnapshot, req.options);
 
     if (returnShallow) {
-      return updated;
+      return this.toEntity(updated);
     } else {
       req.parsed.paramsFilter.forEach((filter) => {
         filter.value = updated[filter.field];
       });
 
-      return this.getOneOrFailAndDisrupt(req);
+      return this.getOneOrFailAndDisrupt(req).then(this.toEntity);
     }
   }
 
@@ -225,13 +225,13 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     const replaced = this.disruptDocumentSnapshot(replacedSnapshot, req.options);
 
     if (returnShallow) {
-      return replaced;
+      return this.toEntity(replaced);
     } else {
       const primaryParam = this.getPrimaryParam(req.options);
 
       /* istanbul ignore if */
       if (!primaryParam) {
-        return replaced;
+        return this.toEntity(replaced);
       }
 
       req.parsed.paramsFilter = [
@@ -242,7 +242,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
         },
       ];
 
-      return this.getOneOrFailAndDisrupt(req);
+      return this.getOneOrFailAndDisrupt(req).then(this.toEntity);
     }
   }
 
@@ -257,7 +257,7 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
       ? await found.ref.update({ [this.collectionDeleteField]: true })
       : await found.ref.delete();
 
-    return toReturn;
+    return toReturn ? this.toEntity(toReturn) : undefined;
   }
 
   async recoverOne(req: CrudRequest): Promise<void | T> {
@@ -267,7 +267,12 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
 
     const found = await this.getOneOrFail(req, true, true);
     await found.ref.update({ [this.collectionDeleteField]: false });
-    return this.getOneOrFailAndDisrupt(req);
+    const data = await this.getOneOrFailAndDisrupt(req);
+    return this.toEntity(data);
+  }
+
+  protected toEntity(data: any): T | Promise<T> {
+    return data;
   }
 
   private getPrimaryParam(options: CrudRequestOptions): string {
@@ -359,7 +364,9 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     return query
       .get()
       .then((snapshot) =>
-        snapshot.docs.map((doc) => this.disruptDocumentSnapshot(doc, options)),
+        snapshot.docs.map((doc) =>
+          this.toEntity(this.disruptDocumentSnapshot(doc, options)),
+        ),
       );
   }
 

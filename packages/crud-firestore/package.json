@@ -1,7 +1,7 @@
 {
   "name": "nestjsx-crud-firestore",
   "description": "NestJs CRUD for RESTful APIs - Firestore",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "license": "MIT",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

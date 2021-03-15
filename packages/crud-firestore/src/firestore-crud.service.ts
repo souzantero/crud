@@ -70,6 +70,13 @@ export abstract class FirestoreCrudService<T> extends CrudService<T> {
     this.onInitMapCollectionFields();
   }
 
+  async countMany(req: CrudRequest): Promise<Number> {
+    const { parsed, options } = req;
+    const query = await this.createQuery(this.collection, parsed, options, false);
+    const snapshot = await query.get();
+    return snapshot.size;
+  }
+
   async getMany(req: CrudRequest): Promise<GetManyDefaultResponse<T> | T[]> {
     const { parsed, options } = req;
     const query = await this.createQuery(this.collection, parsed, options);
